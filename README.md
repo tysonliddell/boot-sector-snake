@@ -202,9 +202,9 @@ power -> BIOS -> boot sector -> our code
 ```
 
 Why are boot programs loaded at address `0x7C00`? It was selected by IBM so
-that the boot sector does not trash the area of RAM used by the BIOS on boot.
-On boot the BIOS places the interrupt vector table, BIOS data area and BIOS
-workspace/stack in the address range `0x0000 - 0x7BFF`.
+that the boot sector does not trash the area of RAM used by the BIOS. On boot
+the BIOS places the interrupt vector table, BIOS data area and BIOS
+workspace/stack in the (absolute) address range `0x0000 - 0x7BFF`.
 
 ```
 +--------+  0x00000
@@ -222,6 +222,9 @@ workspace/stack in the address range `0x0000 - 0x7BFF`.
 
 #### Booting hello world
 The following steps will result in a self-booting program:
+0. Make sure the machine has enough RAM to boot. The BIOS already takes up
+   ~32 KB, so if the program needs to use a non-trivial amount of ram, a 48 KB+
+   machine is needed.
 1. Add the `org 0x7C00` to the program.
 2. Make sure the program is exactly 512 bytes long with the last two bytes
    containing the boot signature.
@@ -258,7 +261,7 @@ and padding the rest of the file up to 160K:
 truncate -s 160K hello-boot.img
 ```
 
-### What we just achieved
+### What we have achieved
 This results in the hello world program running successfully on boot. The code
 runs without the support of a runtime, libraries or kernel. We satisfied the
 BIOS boot protocol, interfaced directly with the hardware through memory mapped
