@@ -267,12 +267,109 @@ runs without the support of a runtime, libraries or kernel. We satisfied the
 BIOS boot protocol, interfaced directly with the hardware through memory mapped
 video (no device driver), and worked with real mode addressing.
 
+## Creating a synchronised game loop
+With "Hello, world!" out of the way, work begins on the game. Let's start with
+a simple game loop incrementally prints characters to the screen. No keyboard
+input or game logic yet.
+
+To control the FPS of the output the `int 0x1a` BIOS interrupt is used to read
+the real-time clock. The value of this counter increases at a rate of `18.2
+Hz` by default. The following code will demonstrate the max speed the snake
+could move under this configuration.
+
+```
+main_loop:
+    mov ax,0x0000   ; Remove the previous `X` from the display
+    stosw
+    mov ax,0x0758   ; Write a new `X` to the display
+    mov word [di],0x0758
+
+    call wait_for_tick
+    jmp main_loop
+
+    ; keep polling the timer until it changes (ticks)
+wait_for_tick:
+    mov ah,0x00     ; get current value from 18.2 Hz timer
+    int 0x1a
+wait_loop:
+    push dx
+    mov ah,0x00
+    int 0x1a
+    pop cx
+    cmp cx,dx
+    jz wait_loop
+    ret
+```
+
+This renders the following:
+
+<img src="./misc/assets/timer-interrupt-default.gif" alt="slow snake" width="500"/>
+
+This isn't fast enough for the higher levels of a game of snake. One way around
+this would be to have the snake jump multiple spaces on a single game tick, but
+a better solution is to speed up the rate at which the clock is updated.
+
+### The Programmable Interval Timer (PIT)
+In the assembly above, the BIOS system-timer clock service is used to poll the
+value of the system-timer time counter.
+
+```
+    mov ah,0x00     ; get current value of the system-timer counter
+    int 0x1a        ; and store the result in CX:DX
+```
+
+We're not stuck with the default 18.2 Hz update frequency of this counter. We
+can reprogram the PIT to speed it up. The CPU runs at a frequency of 4.77 MHz,
+which is reduced to 1.19 MHz by a hardware frequency divider. This lower
+frequency is fed to a 16-bit counter that starts at value RELOAD_VALUE and is
+decremented on each falling edge. When the counter gets to 0 it outputs the
+next "tick" for the system-timer time counter.
+
+```
+4.77 MHz ---freq-divider---> 1.19 MHz --->counter---> (1193182 / reload_value) Hz ---> [system-timer counter]
+```
+
+The RELOAD_VALUE is set the 0xFFFF on boot, which results in a system-timer
+frequency of `1193182 / 65535 = 18.2 Hz`. The PIT can be configured and the
+RELOAD_VALUE changed by writing to the appropriate PIT I/O ports.
+
+```
+    ; set up the PIT for a 200 Hz system timer
+    ;   00111100 = 0x36
+        |||||||^---------16-bit binary mode (not BCD)
+        ||||^^^----------rate generator mode
+        ||^^-------------access mode hibyte/lobyte
+        ^^---------------channel 0
+    mov al,0x36
+    out 0x42,al
+
+    mov ax,5960     ; 1193182 / 5960 = 200 Hz
+    out 0x40,al
+    mov al,ah
+    out 0x40,al
+```
+
+This results in a snake with a much higher top speed.
+
+<img src="./misc/assets/timer-interrupt-200hz.gif" alt="slow snake" width="500"/>
+
+This is will be used as the basis for the sychronised game loop.
+
+## Reading keyboard input
+The next step is to move the 'X' around the screen in response to keyboard
+input.
+
+
+
 ## How input works
 TODO
 ## Debugging challenges
 TODO
 ## Surprises
 TODO
+
+## Useful links:
+- https://wiki.osdev.org/Programmable_Interval_Timer
 
 [weird-strobing]: ./misc/assets/video-mode-mystery1.gif
 [weird-strobing-2]: ./misc/assets/video-mode-mystery2.gif
