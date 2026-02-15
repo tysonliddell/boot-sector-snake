@@ -356,20 +356,179 @@ This results in a snake with a much higher top speed.
 This is will be used as the basis for the sychronised game loop.
 
 ## Reading keyboard input
-The next step is to move the 'X' around the screen in response to keyboard
+### Attempt 1: Going through the BIOS
+The next step is to move a character around the screen in response to keyboard
 input.
 
+The BIOS manages a buffer in memory that stores each key press and provides a
+service to obtain key presses (`INT 0x16`);
+```
+    mov ah,0x00 ; blocking read for next key press, removes key from buffer
+    int 0x16
+
+    mov ah,0x01 ; non-blocking read for next key press, does not remove key from buffer
+    int 0x16
+```
+
+Both of the BIOS functions above will store a key scancode in `AH` and the
+corresponding ASCII character in `AL`. The scancodes of interest are:
 
 
-## How input works
-TODO
-## Debugging challenges
-TODO
+| code | key       |
+| ---- | --------- |
+| 0x48 | Up key    |
+| 0x4B | Left Key  |
+| 0x4D | Right key |
+| 0x50 | Down key  |
+
+The non-blocking read sets the Z flag when no key is available and clears it if
+it detected a key press.
+
+Initially, I tried using the following logic to display an 'X' on the screen
+while any key was being held down, but it didn't work as expected. The screen
+stayed blank.
+
+```
+mov cx,0x0000
+print_key:
+    mov [bx],cx
+    mov ah,0x01     ; check if a key is pressed (non-blocking)
+    int 0x16
+
+    mov cx,0x0000   ; clear displayed character
+    jz print_key    ; no key pressed
+
+    mov ah,0x00     ; clear key buffer
+    int 0x16
+
+    mov cx,0x0758   ; 'X'
+    jmp print_key
+```
+
+This was caused by the result coming from the `AH = 0x01, INT 0x16` being
+throttled while a key is held down, resulting in an indication of no key press
+most of the time and thus no character visible on the screen. The keybord
+repeat rate, managed by the keyboard firmware and configurable through the
+BIOS, is the cause of this behaviour. The repeat rate can be made as short as
+possible like this:
+
+```
+mov ax,0x0305
+mov bx,0x0000
+int 0x16
+```
+
+This will set the repeat delay and typematic rate to their fastest values of
+250ms and 30 Hz respectively. After banging my head against the wall for a
+while, I realised that to make this have any effect in 86Box, I also need to
+adjust the typematic rate on my host linux machine like this:
+
+```
+xset r rate 200 40
+```
+
+However, even with the repeat delay minimised and the typematic rate maximised,
+it is still not responsive enough for some games and in my case the screen
+remained black, save for the occaisonal shortlived flicker of a value on the
+screen. To get around this limitation we need to go around the BIOS and
+interact with the keyboard hardware directly.
+
+### Attempt 2: Reading directly from keyboard hardware
+It's not necessary to do anything about the typematic rate and repeat delay for
+this simple boot sector game, but as a learning experience I wanted to read the
+keyboard directly from the hardware and try and solve the problem above. It
+turned out this was non-trivial:
+
+- The keyboard hardware contains a 8048 microcontroller that is responsible for
+  generating scancodes, key debouncing and buffering up to 20 keys scancodes.
+- The 8048 communicates with the 8255A PPI (programmable peripheral interface),
+  which is a general I/O controller for the PC. The cassette and speaker also
+  connect to the PPI.
+- The 8048 is also connected to the 8259A Programmable Interrupt Controller
+  (PIC). This device recieved interrupts from the hardware, prioritises them,
+  and sends them on to the CPU.
+
+Here's the rough idea:
+```
+key pressed -> [8048 keyboard] -----------scancode----------> [8255A PPI]
+                     |                                            ^
+                     |                                            |
+                     |                                            |
+                     `--> IRQ1 --> [8259A PIC] --interrupt--> [8088 CPU]
+```
+
+Keyboard interrupt requests are received by the PIC on IRQ1 which are mapped to
+interrupt vector 9, since the BIOS configures the PIC with a vector offset of 8
+when setting it up. See the ICW2 (Initialization Command Word 2) config in the
+IBM PC BIOS listing below:
+
+```
+;--------------------------------------------
+;	INITIALIZE THE 8259 INTERRUPT CONTROLLER CHIP
+;--------------------------------------------
+C21:
+	MOV	AL,13H              ;ICW1 - EDGE, SNGL, ICW4
+	OUT	INTA00,AL
+	MOV	AL,8                ;SETUP ICW2 - INT TYPE 8 (8-F)
+	OUT	INTA01,AL
+	MOV	AL,9                ;SETUP ICW4 - BUFFRD,8086 MODE
+	OUT	INTA01,AL
+	SUB	AX,AX               ;POINT DS AND ES TO BEGIN
+	MOV	ES,AX               ; OF R/W STORAGE
+	MOV	SI,DATA             ;POINT DS TO DATA SEG
+	MOV	DS,SI               ;
+	MOV	RESET_FLAG,BX       ;RESTORE RESET_FLAG
+	CMP	RESET_FLAG,1234H    ;RESET_FLAG SET?
+	JE	C25                 ;YES - SKIP STG TEST
+	MOV	DS,AX               ;POINT DS TO 1ST 16K OF STG
+```
+
+On power up the BIOS sets up a keyboard interrupt handler for these keyboard
+events at vector 9 in the 8086 interrupt vector table. For my experiment, I
+wanted to go around the BIOS and poll for keyboard events myself. This would
+mean:
+
+- disabling the interrupts being emitted by the PIC so that no interrupt
+  routine is triggered in the BIOS,
+- putting the PIC in *poll mode* and polling it for the IRQ1 signal,
+- reading the keyboard scancodes from the PPI and signalling to it that keys
+  have been processed successfully to flush its internal buffer, and
+- resetting the PIC so that it's ready for the next interrupt.
+
+I made an attempt at this, but it added quite a lot of code to the already
+space-constrained boot sector binary and I got a bit lost in the weeds trying
+to get it working correctly. I read through the BIOS source listing in the 5150
+technical reference to see how it does things, but it wasn't much help as it
+doesn't use the PIC in polling mode. Given that this isn't something that is
+needed to complete the snake game I'm going to pause this investigation for
+now. However, I would like to complete this as a follow-up exercise because
+it's really interesting.
+
+### Keyboard handling decision: simplicity wins
+For simplicity and to preserve space in the boot sector, keyboard import will
+be read using the BIOS keyboard service. The limitations described in the above
+sections are not a problem for this game since we are only interested in
+processing changes in direction rather than indicating in real-time which key
+is currently being held down/released. Following this approach gives the
+following result (source code [here][keyboard-code]):
+
+<img src="./misc/assets/keyboard-input.gif" alt="responding to keyboard" width="500"/>
+
 ## Surprises
 TODO
+## Follow-up
+- Experiment with disabling servicing of IRQ1 in the PIC and handle keyboard
+  events by polling.
 
 ## Useful links:
+- https://www.ctyme.com/intr/int.htm
+- https://github.com/philspil66/IBM-PC-BIOS
 - https://wiki.osdev.org/Programmable_Interval_Timer
+- https://wiki.osdev.org/I8042_PS/2_Controller
+- https://wiki.osdev.org/8259_PIC
+- https://pdos.csail.mit.edu/6.828/2017/readings/hardware/8259A.pdf
+- http://aturing.umcs.maine.edu/~meadow/courses/cos335/Intel8255A.pdf
+- http://lh.ece.dal.ca/csteaching/pcdev.html
 
 [weird-strobing]: ./misc/assets/video-mode-mystery1.gif
 [weird-strobing-2]: ./misc/assets/video-mode-mystery2.gif
@@ -380,3 +539,5 @@ TODO
 [hello]: ./misc/assets/video-mode-hello.gif
 [hello-code]: ./src/hello.asm
 [hello-code-boot]: ./src/hello-boot.asm
+[ps2-keyboard]: https://wiki.osdev.org/I8042_PS/2_Controller
+[keyboard-code]: ./src/3-keyboard.asm
