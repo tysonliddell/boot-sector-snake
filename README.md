@@ -360,6 +360,8 @@ This results in a snake with a much higher top speed.
 
 This is will be used as the basis for the sychronised game loop.
 
+*Cumulative byte count: 68/512*
+
 ## Reading keyboard input
 ### Attempt 1: Going through the BIOS
 The next step is to move a character around the screen in response to keyboard
@@ -519,6 +521,8 @@ following result (source code [here][keyboard-code]):
 
 <img src="./misc/assets/keyboard-input.gif" alt="responding to keyboard" width="500"/>
 
+*Cumulative byte count: 135/512*
+
 ## Adding boundaries
 ### Drawing a border
 Next some boundaries are added to the game. Hitting one should result in a
@@ -595,8 +599,7 @@ Adding a game over message on collision gives the finishing touch:
 
 <img src="./misc/assets/boundaries.gif" alt="running into a boundary" width="500"/>
 
-So far the binary is 226 bytes in size.
-
+*Cumulative byte count: 226/512*
 
 ## Adding randomly placed power-ups
 Next we add randomly places power-ups on the board for the snake to eat. Eating
