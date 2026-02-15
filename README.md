@@ -605,9 +605,87 @@ Adding a game over message on collision gives the finishing touch:
 Next we add randomly places power-ups on the board for the snake to eat. Eating
 them has no effect yet.
 
+Experimentation revealed that using the time reported from the BIOS on `INT
+0x1A` through TIMER 0 (channel 0) of the PIT does not produce much randomness
+at all, even with the increase from 18.2 Hz to 200 Hz. The first spawned
+powerup was always starting near the same place (top left corner) of screen.
+The reason for this is the timer managed by the BIOS has been divided down from
+1.19 Mhz to 18.2 Hz. However, as described earlier, the internal counter of the
+PIT is always running at 1.19 MHz. Therefore, sampling the PIT's internal
+counter instead of the BIOS managed timer value provides a value that changes
+at 1.19 Mhz no matter what rollover (reload value) is configured.
+
+In fact, according to the [8253 PIT data sheet][pit-datasheet] there are a
+total of 3 identical timer blocks available. The 5150 Technical Reference
+confirms that TIMER 0 is used for the main PC "clock" timer, TIMER 1 refreshes
+the DRAM, and TIMER 2 is used for the PC speaker and cassette.
+
+In order to generate psudorandom numbers that fit neatly into the `25*80` range
+of the screen's character positions we can configure the TIMER 2 internal
+counter to rollover at 25*80 and run it without interrupts, simplifying the
+logic to obtain a suitable random number.
+
+```
+    ; set up TIMER 2 for a counter rollover of 25*80 so that we can use it
+    ; to "randomly" generate screen positions.
+    mov al,10111100b    ; TIMER 2, rate generator
+    ;      |||||||^---------16-bit binary mode (not BCD)
+    ;      ||||^^^----------rate generator mode
+    ;      ||^^-------------access mode hibyte/lobyte
+    ;      ^^---------------TIMER 2
+    out 0x43,al
+
+    mov ax,0x25*80      ; set counter rollover value to 25*80
+    out 0x42,al
+    mov al,ah
+    out 0x42,al
+```
+
+A random power-up is then placed on the screen by checking the PIT TIMER 2
+internal counter value directly (without going through the BIOS), grabbing more
+values if needed until we have one that doesn't collide with something already
+on the screen.
+
+```
+place_powerup:
+    call random_pos
+    mov bx,ax
+    cmp word [bx],BIOS_BLANK_FILL_CHAR
+    jnz place_powerup                   ; find another location
+
+    mov word [bx], POWERUP_CHAR
+    ret
+
+;
+; random_pos: returns a random screen position in AX
+;
+random_pos:
+    mov ax,10000000b    ; read TIMER 2 counter value from PIT in latched mode
+    out 0x43,ax
+    in al,0x42
+    mov ah,al
+    in al,0x42
+    xchg al,ah
+
+    shl ax,1        ; video locations are 16 bits wide
+    ret
+```
+
+Adding some calls to the `place_powerup` subroutine each time the up arrow is
+pressed demonstrates that this works pretty well.
+
+<img src="./misc/assets/random-powerups.gif" alt="running into a boundary" width="500"/>
+
+*Cumulative byte count: 281/512*
+
+
 ## Making the snake grow
 Next we add the logic the make the snake grow when eating a power-up.
 
+## Extras
+- Adding sound
+- Adusting the speed
+- Adding a score
 
 ## Surprises
 TODO
@@ -619,6 +697,7 @@ TODO
 - https://www.ctyme.com/intr/int.htm
 - https://github.com/philspil66/IBM-PC-BIOS
 - https://wiki.osdev.org/Programmable_Interval_Timer
+- https://cpcwiki.eu/imgs/e/e3/8253.pdf
 - https://wiki.osdev.org/I8042_PS/2_Controller
 - https://wiki.osdev.org/8259_PIC
 - https://pdos.csail.mit.edu/6.828/2017/readings/hardware/8259A.pdf
@@ -636,3 +715,4 @@ TODO
 [hello-code-boot]: ./src/hello-boot.asm
 [ps2-keyboard]: https://wiki.osdev.org/I8042_PS/2_Controller
 [keyboard-code]: ./src/3-keyboard.asm
+[pit-datasheet]: https://cpcwiki.eu/imgs/e/e3/8253.pdf
