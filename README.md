@@ -245,11 +245,11 @@ with the following changes:
  message_margin:         equ 15
 -    org 0x100
 +    org 0x7c00
- 
+
  start:
      mov ax,0x0002   ; text mode
 @@ -51,3 +51,6 @@ start:
- 
+
  forever:
      jmp forever
 +
@@ -518,6 +518,93 @@ is currently being held down/released. Following this approach gives the
 following result (source code [here][keyboard-code]):
 
 <img src="./misc/assets/keyboard-input.gif" alt="responding to keyboard" width="500"/>
+
+## Adding boundaries
+### Drawing a border
+Next some boundaries are added to the game. Hitting one should result in a
+game-over message. First a boundary is drawn around the screen, which is
+straightforward at this point:
+
+```
+draw_border:
+    mov ax,0x0Fdb       ; solid block character in PC-850 charset
+    mov cx,80
+    rep stosw
+
+    mov di,80*24*2
+    mov cx,80
+    rep stosw
+
+    mov bx,0x00
+    mov cx,25
+col_loop:
+    mov [bx],ax
+    add bx,79*2
+    mov [bx],ax
+    add bx,2
+    loop col_loop
+    ret
+```
+
+### Adding collision detection
+The video memory is used to check for collisions. The simplest way
+to do this is to check if the next square that snake is about to move onto is
+blank. But what does blank mean? I initially guessed that each 16-bit word in
+video memory was initialised to `0x0000`. This does result in blank characters,
+but my collision detection didn't work. In the BIOS listing we find that the
+screen is blanked with the `0x0720` character (`' '` char with standard
+monochrome character attribute):
+
+```
+;------ FILL REGEN AREA WITH BLANK
+
+	XOR	DI,DI		; SET UP POINTER FOR REGEN
+	MOV	CRT_START,DI	; START ADDRESS SAVED IN GLOBAL
+	MOV	ACTIVE_PAGE,0	; SET PAGE VALUE
+	MOV	CX,8192 	; NUMBER OF WORDS IN COLOR CARD
+	CMP	AH,4		; TEST FOR GRAPHICS
+	JC	M12		; NO_GRAPHICS_INIT
+	CMP	AH,7		; TEST FOR BW CARD
+	JE	M11		; BW_CARD_INIT
+	XOR	AX,AX		; FILL FOR GRAPHICS MODE
+	JMP	SHORT M13	; CLEAR_BUFFER
+M11:				; BW_CARD_INIT
+	MOV	CX,2048 	; BUFFER SIZE ON BW CARD
+M12:				; NO_GRAPHICS_INIT
+	MOV	AX,' '+7*256    ; FILL CHAR FOR ALPHA
+M13:				; CLEAR BUFFER
+	REP	STOSW		; FILL THE REGEN BUFFER WITH BLANKS
+```
+
+With this correction in place we arrive at the following collision detection
+logic, which will also work later to detect self-collisions with the snake:
+
+```
+BIOS_BLANK_FILL_CHAR:   equ ' '+7*256   ; blank vid memory init char
+
+;
+; check_collision: Z=0 if there is a collision, Z=1 otherwise
+;
+check_collision:
+    cmp word [bx],BIOS_BLANK_FILL_CHAR
+    ret
+```
+
+### Gameover message
+Adding a game over message on collision gives the finishing touch:
+
+<img src="./misc/assets/boundaries.gif" alt="running into a boundary" width="500"/>
+
+So far the binary is 226 bytes in size.
+
+
+## Adding randomly placed power-ups
+Next we add randomly places power-ups on the board for the snake to eat. Eating
+them has no effect yet.
+
+## Making the snake grow
+Next we add the logic the make the snake grow when eating a power-up.
+
 
 ## Surprises
 TODO

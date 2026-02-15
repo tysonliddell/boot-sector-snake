@@ -9,6 +9,8 @@ all: $(TARGETS)
 
 $(BUILDDIR)/%.img: $(SOURCEDIR)/%.asm | $(BUILDDIR)
 	nasm -f bin $< -o $@
+	truncate -s 160K $@
+	sync
 
 $(BUILDDIR):
 	-mkdir $(BUILDDIR)
