@@ -269,8 +269,8 @@ video (no device driver), and worked with real mode addressing.
 
 ## Creating a synchronised game loop
 With "Hello, world!" out of the way, work begins on the game. Let's start with
-a simple game loop incrementally prints characters to the screen. No keyboard
-input or game logic yet.
+a simple game loop that incrementally prints characters to the screen. No
+keyboard input or game logic yet.
 
 To control the FPS of the output the `int 0x1a` BIOS interrupt is used to read
 the real-time clock. The value of this counter increases at a rate of `18.2
@@ -336,10 +336,10 @@ RELOAD_VALUE changed by writing to the appropriate PIT I/O ports.
 ```
     ; set up the PIT for a 200 Hz system timer
     ;   00111100 = 0x36
-        |||||||^---------16-bit binary mode (not BCD)
-        ||||^^^----------rate generator mode
-        ||^^-------------access mode hibyte/lobyte
-        ^^---------------channel 0
+    ;   |||||||^---------16-bit binary mode (not BCD)
+    ;   ||||^^^----------rate generator mode
+    ;   ||^^-------------access mode hibyte/lobyte
+    ;   ^^---------------channel 0
     mov al,0x36
     out 0x42,al
 
@@ -374,12 +374,12 @@ Both of the BIOS functions above will store a key scancode in `AH` and the
 corresponding ASCII character in `AL`. The scancodes of interest are:
 
 
-| code | key       |
-| ---- | --------- |
-| 0x48 | Up key    |
-| 0x4B | Left Key  |
-| 0x4D | Right key |
-| 0x50 | Down key  |
+| code | key                    |
+| ---- | ---------------------- |
+| 0x48 | Up key pressed down    |
+| 0x4B | Left Key pressed down  |
+| 0x4D | Right key pressed down |
+| 0x50 | Down key pressed down  |
 
 The non-blocking read sets the Z flag when no key is available and clears it if
 it detected a key press.
@@ -445,7 +445,7 @@ turned out this was non-trivial:
   which is a general I/O controller for the PC. The cassette and speaker also
   connect to the PPI.
 - The 8048 is also connected to the 8259A Programmable Interrupt Controller
-  (PIC). This device recieved interrupts from the hardware, prioritises them,
+  (PIC). This device receives interrupts from the hardware, prioritises them,
   and sends them on to the CPU.
 
 Here's the rough idea:
