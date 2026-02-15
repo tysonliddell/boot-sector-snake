@@ -18,6 +18,11 @@ PCs.
 TODO
 
 # Technical write-up
+- [Tools](#tools)
+- [Hello world](#hello-world)
+- [Creating a synchronised game loop](#creating-a-synchronised-game-loop)
+- [Reading keyboard input](#reading-keyboard-input)
+
 ## Tools
 - 86Box can be used for cycle-accurate emulation of the 8086. Since the game
   runs directly in the bootloader, we don't need to worry about sourcing an OS.
