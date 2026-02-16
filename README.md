@@ -227,13 +227,14 @@ workspace/stack in the (absolute) address range `0x0000 - 0x7BFF`.
 
 #### Booting hello world
 The following steps will result in a self-booting program:
-0. Make sure the machine has enough RAM to boot. The BIOS already takes up
+
+1. Make sure the machine has enough RAM to boot. The BIOS already takes up
    ~32 KB, so if the program needs to use a non-trivial amount of ram, a 48 KB+
    machine is needed.
-1. Add the `org 0x7C00` to the program.
-2. Make sure the program is exactly 512 bytes long with the last two bytes
+2. Add the `org 0x7C00` directive to the program.
+3. Make sure the program is exactly 512 bytes long with the last two bytes
    containing the boot signature.
-3. Don't use any OS services like `int 0x20` (BIOS services are ok to use).
+4. Don't use any OS services like `int 0x20` (BIOS services are ok to use).
 
 Therefore, the hello world program above is [made bootable][hello-code-boot]
 with the following changes:
