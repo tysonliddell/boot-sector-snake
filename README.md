@@ -179,7 +179,7 @@ underline and the blink bit.
 
 Success! But this program runs in the OS. We want it to run *instead* of the
 operating system. When loading a COM program, DOS maintains the program segment
-prefix (PSP) data structure at physical address `0x00`, which contains the
+prefix (PSP) data structure at (relative) address `0x00`, which contains the
 state of the running program for the OS. The COM binary is loaded into memory
 immediatly after the PSP at address `0x100` and program execution starts
 following a jump to that location. This is why the `org 0x100` assembly

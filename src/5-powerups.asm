@@ -1,6 +1,6 @@
 VID_BUF_SEG:            equ 0xb000
 BIOS_BLANK_FILL_CHAR:   equ ' '+7*256   ; blank vid memory init char
-POWERUP_CHAR:           equ '@'+7*256   ; blank vid memory init char
+POWERUP_CHAR:           equ '@'+7*256
 
     org 0x7c00
 start:
