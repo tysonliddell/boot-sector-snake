@@ -679,9 +679,135 @@ pressed demonstrates that this works pretty well.
 
 *Cumulative byte count: 281/512*
 
-
 ## Making the snake grow
-Next we add the logic the make the snake grow when eating a power-up.
+Next we add the logic the make the snake grow when eating a power-up. The
+snake's body is conceptually a linked list of positions.
+
+```
+ |  012345
+-+--------
+0|
+1|  @000
+2|     000
+3|
+```
+
+One representation for the snake above is the linked list
+
+```
+(2,5) -> (2,4) -> (2,3) -> (1,3) -> (1,2) -> (1,1) -> (1,0)
+```
+
+Moving the snake forward one step is simply a matter of removing the end of the
+snake and adding a new position in front of the head:
+
+```
+ |  012345
+-+--------
+0|  @
+1|  0000
+2|     00
+3|
+
+
+(2,4) -> (2,3) -> (1,3) -> (1,2) -> (1,1) -> (1,0) -> (0,0)
+```
+
+A linked list structure is required for this game. Otherwise, for the following
+snake there would be no way to determine where the end of the snake is:
+
+```
+ |  012345
+-+--------
+0|  @
+1|  0000
+2|  0000
+3|
+```
+
+### Approach 1: Storing the list in conventional memory
+The linked list can be stored in conventional RAM. On each move forward the
+`pop_rear()` and `head.next = new Node()` operations need to be performed. If a
+traditional static buffer is used for this then data needs to be shuffled on
+each step:
+
+```
+# Start
+[(2,5), (2,4), (2,3), (1,3), (1,2), (1,1), (1,0)]
+
+# After step forward
+[(2,4), (2,3), (1,3), (1,2), (1,1), (1,0), (0,0)]
+```
+
+Performance can be improved here by using a circular buffer. Here's an example
+of how 6 steps might look with a circular buffer of size 10:
+```
+[(2,5), (2,4), (2,3), (1,3), (1,2), (1,1), (1,0), NA,    NA,    NA   ]
+[NA   , (2,4), (2,3), (1,3), (1,2), (1,1), (1,0), (0,0), NA,    NA   ]
+[NA   , NA   , (2,3), (1,3), (1,2), (1,1), (1,0), (0,0), (0,1), NA   ]
+[NA   , NA   , NA   , (1,3), (1,2), (1,1), (1,0), (0,0), (0,1), (0,2)]
+[(0,3), NA   , NA   , NA   , (1,2), (1,1), (1,0), (0,0), (0,1), (0,2)]
+[(0,3), (0,4), NA   , NA   , NA   , (1,1), (1,0), (0,0), (0,1), (0,2)]
+```
+
+At each step only the head of the snake needs to me moved and the other end
+marked as garbage. There is still one annoying thing about this - we are
+duplicating information! That is, we store all of the positions of the snake in
+conventional memory as well as video memory. To compound this issue, these are
+separate memory segments when programming in 16-bit x86 assembly, which adds to
+the complexity and size of the program.
+
+If we represent the snake on the display using a representation like that above
+there is not much we can do. Information is missing and we need to store it.
+But what if instead of storing the information in conventional memory, we store
+it in the video memory somehow? We can't just store it in the video buffer "off
+screen" because I've observed on the 5150 that this results in data wrapping
+around and being visible on the screen when using the MDA video card. Only 48
+characters (96 bytes) can hidden off screen with this approach. But can we
+encode it *in* the snake characters themselves? Yes we can.
+
+### Approach 2: Storing the list in video memory
+Using different characters depending on where the next connection in the snake
+is allows the linked list to be encoded in the snake itself with the video
+memory:
+
+```
+ |  012345
+-+--------
+0|  @
+1|  ^<<<
+2|     ^<
+3|
+```
+
+We can also use the original, non-visuallly distinct character for the whole
+snake, but exploit that fact that many of the character attributes in
+monochrome mode have the same effect. This was seen in the hello world example
+[above](#discovering-hardware-behavior-by-accident-blinking-characters). That
+is, the following values will all look the same to the MDA when written to
+video memory. They all show an 'X' character with no underline, no "intensity"
+effect and not blinking effect:
+
+```
+0x0258
+0x0358
+0x0458
+0x0558
+```
+
+This can be used to encode the same information. This is the approach that we
+will use with the following encodings:
+
+```
+0x02XX: next snake position is in up    direction
+0x03XX: next snake position is in left  direction
+0x04XX: next snake position is in right direction
+0x05XX: next snake position is in down  direction
+```
+
+The small portion of 96 byte "off screen" video buffer is used to keep track of
+the positions of the head and tail of the snake.
+
 
 ## Extras
 - Adding sound
@@ -689,7 +815,10 @@ Next we add the logic the make the snake grow when eating a power-up.
 - Adding a score
 
 ## Surprises
-TODO
+- `shr bx,8` is undefined behaviour and made `mov word [0],'X'+7*256` not work!
+  Looks like it corrupted the DS register. Possibly an 86Box issue.
+
+
 ## Follow-up
 - Experiment with disabling servicing of IRQ1 in the PIC and handle keyboard
   events by polling.
