@@ -17,7 +17,6 @@ WHTFG_BLKBG:            equ 0x07    ; white fg with black bg char attribute
 ; this simplifies working with segmented memory
 SNAKE_HEAD_POS:         equ 25*80*2
 SNAKE_TAIL_POS:         equ SNAKE_HEAD_POS+2
-SNAKE_LENGTH:           equ SNAKE_HEAD_POS+4
 
     org 0x7c00
 start:
@@ -25,7 +24,7 @@ start:
     ; to "randomly" generate screen positions.
     mov al,10111100b    ; TIMER 2, rate generator
     out 0x43,al
-    mov ax,0x25*80
+    mov ax,25*80-1      ; counter value can include its upper bound
     out 0x42,al
     mov al,ah
     out 0x42,al
@@ -56,7 +55,6 @@ start:
     mov ax,SNAKE_BODY_CHAR+RIGHT_DIR*256
     mov [SNAKE_START_POS-2],ax
     mov [SNAKE_START_POS-4],ax
-    mov word [SNAKE_LENGTH],3
 
     mov word [SNAKE_TAIL_POS],SNAKE_START_POS-4
 
@@ -65,37 +63,28 @@ start:
 
 main:
     call wait_for_tick
-    call move_tail
-    call move_head
+    call grow_head
+    jz main             ; powerup consumed, no need to shrink tail
+    call shrink_tail
     jmp main
 
-move_tail:
-    mov di,[SNAKE_TAIL_POS]
-    mov cx,[di]
-    mov ax,di
+shrink_tail:
+    mov bx,[SNAKE_TAIL_POS]
+    push bx
 
-    cmp ch,RIGHT_DIR
-    jnz tail2
-    add ax,2
-    jmp tail_end
-tail2:
-    cmp ch,UP_DIR
-    jnz tail3
-    sub ax,80*2
-    jmp tail_end
-tail3:
-    cmp ch,DOWN_DIR
-    jnz tail4
-    add ax,80*2
-    jmp tail_end
-tail4:          ; must be LEFT_DIR
-    sub ax,2
-tail_end:
-    mov [SNAKE_TAIL_POS],ax
-    mov word [di],BIOS_BLANK_FILL_CHAR  ; clear previous character
+    mov al,[bx+1]           ; get DIR enum from position
+    xor ah,ah
+    call next_position      ; make BX position of new tail
+
+    mov [SNAKE_TAIL_POS],bx
+    pop bx
+    mov word [bx],BIOS_BLANK_FILL_CHAR  ; clear previous character
     ret
 
-move_head:
+;
+; grow_head: sets Z=1 if powerup consumed, otherwise Z=0
+;
+grow_head:
     mov ah,0x01         ; key pressed?
     int 0x16
     jz l4               ; no key pressed, continue in current direction
@@ -127,18 +116,14 @@ l4:
     mov cl,[di+1]               ; curr dir hidden in snake head vid mem
     xor ch,ch
     jmp move_forward
-
 move_forward:
     mov bx,[SNAKE_HEAD_POS]
     push bx
 
-    mov di, DIR_TABLE
-    add di,cx               ; cx has dir encoding which indexes into table
-    cs mov byte al,[di]
-    cbw
-    shl ax,1                ; double offset for 16-bit video memory
-    add bx,ax               ; BX is position of new head
-
+    mov ax,cx
+    call next_position          ; make BX position of new head
+    call eat_powerup
+    pushf                       ; save Z flag for return value
     call check_collision
     jnz game_over
 
@@ -147,10 +132,11 @@ move_forward:
     mov cl,SNAKE_HEAD_CHAR
     mov [bx],cx
 
+    popf
     pop bx                      ; update old head
     mov cl,SNAKE_BODY_CHAR
     mov [bx],cx
-    ret
+    ret                         ; return Z flag
 
 wait_for_tick:
     push cx
@@ -194,6 +180,17 @@ check_collision:
     cmp word [bx],BIOS_BLANK_FILL_CHAR
     ret
 
+;
+; eat_powerup: Z=1 if powerup was consumed, Z=0 otherwise
+;
+eat_powerup:
+    cmp word [bx],POWERUP_CHAR
+    jnz powerup_ret
+    call place_powerup
+    mov word [bx],BIOS_BLANK_FILL_CHAR
+powerup_ret:
+    ret
+
 game_over:
     mov ax,cs
     mov ds,ax
@@ -213,12 +210,15 @@ game_over:
 game_over_msg:  db "GAME OVER!",0
 
 place_powerup:
+    push bx
+pp_loop:
     call random_pos
     mov bx,ax
     cmp word [bx],BIOS_BLANK_FILL_CHAR
-    jnz place_powerup                   ; find another location
+    jnz pp_loop                         ; find another location
 
     mov word [bx], POWERUP_CHAR
+    pop bx
     ret
 
 ;
@@ -235,8 +235,23 @@ random_pos:
     shl ax,1        ; video locations are 16 bits wide
     ret
 
+;
+; next_position: given a DIR enum in AX, moves BX to the
+;                next position on the screen.
+;
+;                trashes DI
+;
+next_position:
+    mov di,DIR_TABLE
+    add di,ax
+    cs mov byte al,[di]
+    cbw
+    shl ax,1                ; double offset for 16-bit video memory
+    add bx,ax               ; move BX to new position
+    ret
+
 DIR_TABLE:
-    db 0,0,-80,-1,1,80  ; up, left; right, down
+    db 0,0,-80,-1,1,80  ; NA, NA, up, left, right, down
 
     times 510-($-$$) db 0   ; pad rest of first sector with zeros
     dw 0xaa55               ; boot signature (little-endian)

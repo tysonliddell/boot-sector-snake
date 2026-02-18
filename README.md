@@ -121,7 +121,7 @@ image, the characters are blinking at around the same frequency as the cursor
 does on boot.
 
 Blitting the characters to [half of the screen][weird-strobing-2] shows that
-it's only the characters that are being printed that are effected, so it wasn't
+it's only the characters that are being printed that are affected, so it wasn't
 a video issue. The blinking reveals something important: the attribute byte is
 interpreted differently by the MDA.
 
@@ -760,11 +760,9 @@ the complexity and size of the program.
 If we represent the snake on the display using a representation like that above
 there is not much we can do. Information is missing and we need to store it.
 But what if instead of storing the information in conventional memory, we store
-it in the video memory somehow? We can't just store it in the video buffer "off
-screen" because I've observed on the 5150 that this results in data wrapping
-around and being visible on the screen when using the MDA video card. Only 48
-characters (96 bytes) can hidden off screen with this approach. But can we
-encode it *in* the snake characters themselves? Yes we can.
+it in the video memory somehow? We can't store it in the video buffer "off
+screen" because there's only 96 bytes of this available (more on that soon).
+But can we encode it *in* the snake characters themselves? Yes we can.
 
 ### Approach 2: Storing the list in video memory
 Using different characters depending on where the next connection in the snake
@@ -805,11 +803,115 @@ will use with the following encodings:
 0x05XX: next snake position is in down  direction
 ```
 
-The small portion of 96 byte "off screen" video buffer is used to keep track of
-the positions of the head and tail of the snake.
+These encodings can also be used to index into an array to map each to it's
+corresponding offset on the 25 x 80 screen for the next position, simplifying
+the encoding -> position calculation significantly.
 
+```
+DIR_TABLE:
+    db 0,0,-80,-1,1,80  ; NA, NA, up, left, right, down
+```
 
-## Extras
+Another useful trick is to use the small portion of 96 byte "off screen" video
+buffer is used to keep track of the positions of the head and tail of the
+snake. The video card has 4096 bytes of memory, but only uses 4000 of those
+bytes, when in text mode, to display the 25 * 80 = 2000 16-bit
+character/attribute encodings. That's 96 bytes of free memory!
+
+## Alpha build complete!
+Making the snake grow correctly turned out to be the trickiest part of this
+project - assembly language is unforgiving for even the smallest of slip-ups.
+However, simplifying the algorithm and liberal use of `jmp $` statements to see
+what was going on got things moving again. With that done, v1 of the game is
+complete! It has all the base game mechanics of snake.
+
+<img src="./misc/assets/snake-v1.gif" alt="snake v1 gameplay" width="500"/>
+
+Here's the overall algorithm for the game:
+- Configure the TIMER 2 on the PIT to rollover internally at 80 * 25 = 4000,
+  effectively generating a random number between 0 and 3999 since it ticks over
+  so fast (1.19 Mhz).
+- Draw the game border.
+- Place a random power-up (using the TIMER 2 counter).
+- main_loop:
+  - Sync to 18.2 Hz using timer provided by BIOS (TIMER 0).
+  - grow_snake:
+    - Determine current direction from last keystroke.
+    - Determine next position for head.
+    - Eat power-up if it's on the next position.
+    - End game if next position is a collision.
+    - Update new head position on screen.
+  - shrink_tail:
+    - If no power-up was consumed in grow_head remove the last square of the
+      tail.
+
+*Cumulative byte count: 370/512*
+
+### Code improvments
+The following improvements were made to the code during the
+debugging/refactoring that was needed to get to v1:
+- Perform `grow_head` before `shrink_tail` since the latter needs to know if a
+  power-up was consumed. If a power-up is consumed `shrink_tail` is skipped
+  entirely, causing the snake to grow.
+- Using a table to map direction enums to video buffer offsets for next
+  position. This simplifies things nicely with `next_position` being used by
+  both the `grow_head` and `shrink_tail` routines and shaved 20 bytes off the
+  binary size:
+  ```diff
+     shrink_tail:
+  -    mov di,[SNAKE_TAIL_POS]
+  -    mov cx,[di]
+  -    mov ax,di
+  -
+  -    cmp ch,RIGHT_DIR
+  -    jnz tail2
+  -    add ax,2
+  -    jmp tail_end
+  -tail2:
+  -    cmp ch,UP_DIR
+  -    jnz tail3
+  -    sub ax,80*2
+  -    jmp tail_end
+  -tail3:
+  -    cmp ch,DOWN_DIR
+  -    jnz tail4
+  -    add ax,80*2
+  -    jmp tail_end
+  -tail4:          ; must be LEFT_DIR
+  -    sub ax,2
+  -tail_end:
+  -    mov [SNAKE_TAIL_POS],ax
+  -    mov word [di],BIOS_BLANK_FILL_CHAR  ; clear previous character
+  +    mov bx,[SNAKE_TAIL_POS]
+  +    push bx
+  +
+  +    mov al,[bx+1]           ; get DIR enum from position
+  +    xor ah,ah
+  +    call next_position      ; make BX position of new tail
+  +
+  +    mov [SNAKE_TAIL_POS],bx
+  +    pop bx
+  +    mov word [bx],BIOS_BLANK_FILL_CHAR  ; clear previous character
+
+  +;
+  +; next_position: given a DIR enum in AX, moves BX to the
+  +;                next position on the screen
+  +;
+  +next_position:
+  +    push di
+  +    mov di,DIR_TABLE
+  +    add di,ax
+  +    cs mov byte al,[di]
+  +    cbw
+  +    shl ax,1                ; double offset for 16-bit video memory
+  +    add bx,ax               ; move BX to new position
+  +    pop di
+  +    ret
+  ```
+
+## Enhancements
+We've only used 370 of the 512 bytes available in the boot sector, leaving us
+with a whopping 142 bytes to add some enhancements.
 - Adding sound
 - Adusting the speed
 - Adding a score
