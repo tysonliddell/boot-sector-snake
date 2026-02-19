@@ -911,14 +911,19 @@ debugging/refactoring that was needed to get to v1:
 
 ## Enhancements
 We've only used 370 of the 512 bytes available in the boot sector, leaving us
-with a whopping 142 bytes to add some enhancements.
-- Adding sound
-- Adusting the speed
-- Adding a score
+with a whopping 142 bytes to add some enhancements! Here's the cumulative cost
+of adding some additional features:
+- Adding a score: 416/512 bytes
+- Adding sound: TODO
+- Adusting the speed: TODO
 
 ## Surprises
 - `shr bx,8` is undefined behaviour and made `mov word [0],'X'+7*256` not work!
   Looks like it corrupted the DS register. Possibly an 86Box issue.
+- The `inc ax` instruction has the 1 byte opcode `0x40`, whereas `add
+  ax,0x0001` is `0x05 0x01 0x00`, which is 3 bytes long. Thus `inc ax, inc ax`
+  uses less much less space then `add ax,2`. The trade-off is it's less
+  efficient.
 
 
 ## Follow-up

@@ -1,7 +1,7 @@
 VID_BUF_SEG:            equ 0xb000
 BIOS_BLANK_FILL_CHAR:   equ ' '+7*256       ; blank vid memory init char
 POWERUP_CHAR:           equ '@'+7*256
-SCORE_POS               equ (80-4)*2
+SCORE_POS               equ (80-1)*2
 
 SNAKE_HEAD_CHAR:        equ 0x01            ; smiley face
 SNAKE_BODY_CHAR:        equ 0xE9            ; theta character
@@ -60,50 +60,39 @@ start:
     mov [SNAKE_START_POS-4],ax
 
     mov word [SNAKE_TAIL_POS],SNAKE_START_POS-4
-    mov word [SNAKE_LENGTH],3-1     ; will be incremented to 3 shortly
+    mov word [SNAKE_LENGTH],3
 
     call draw_border
     call place_powerup
-    jmp inc_score_then_main
 
 main:
+    call print_score
     call wait_for_tick
     call grow_head
-    jz inc_score_then_main      ; powerup consumed, no need to shrink tail
+    jz inc_score            ; powerup consumed, no need to shrink tail
     call shrink_tail
     jmp main
+inc_score:
+    inc word [SNAKE_LENGTH]
+    jmp main
 
-inc_score_then_main:
+print_score:
     mov ax,[SNAKE_LENGTH]
-    inc ax
-    mov [SNAKE_LENGTH],ax
+    mov cx,10
+    mov bx,SCORE_POS
+div_loop:
+    cmp ax,0
+    jnz do_div
+    ret
+do_div:
     mov dx,0
-    mov bx,1000
-    div bx
-    add al,'0'
-    mov ah,BLKFG_WHTBG
-    mov [SCORE_POS],ax
-
-    mov ax,dx
-    mov dx,0
-    mov bx,100
-    div bx
-    add al,'0'
-    mov ah,BLKFG_WHTBG
-    mov [SCORE_POS+2],ax
-
-    mov ax,dx
-    mov dx,0
-    mov bx,10
-    div bx
-    add al,'0'
-    mov ah,BLKFG_WHTBG
-    mov [SCORE_POS+4],ax
-
+    div cx
     add dl,'0'
     mov dh,BLKFG_WHTBG
-    mov [SCORE_POS+6],dx
-    jmp main
+    mov [bx],dx
+    dec bx
+    dec bx
+    jmp div_loop
 
 shrink_tail:
     mov bx,[SNAKE_TAIL_POS]
