@@ -31,8 +31,8 @@ TODO
 - [Alpha build complete! - 370/512 bytes, room to spare](#alpha-build-complete)
 - [Enhancements - Bit banging to create sound](#enhancements)
 - [Surprises](#surprises)
-- [Follow-up ideas](#follow-up-ideas)
 - [Wrapping up](#wrapping-up)
+- [Follow-up ideas](#follow-up-ideas)
 
 ## Tools
 - 86Box can be used for cycle-accurate emulation of the 8086. Since the game
@@ -970,14 +970,18 @@ It doesn't add much code either and only adds 25 bytes to the binary.
   uses less much less space then `add ax,2`. The trade-off is it's less
   efficient.
 
+## Wrapping up
+Here's the [final program][final-program]. It's not perfect, but we covered a
+lot of ground:
+
+- TODO
+- TODO
+
 ## Follow-up ideas
 - Experiment with disabling servicing of IRQ1 in the PIC and handle keyboard
   events by polling.
 - Add a mechanism to increase the speed as the game progresses.
 - Add random obstacles to make the game more challenging.
-
-## Wrapping up
-TODO
 
 ## Useful links:
 - https://www.ctyme.com/intr/int.htm
@@ -1002,3 +1006,4 @@ TODO
 [ps2-keyboard]: https://wiki.osdev.org/I8042_PS/2_Controller
 [keyboard-code]: ./src/3-keyboard.asm
 [pit-datasheet]: https://cpcwiki.eu/imgs/e/e3/8253.pdf
+[final-program]: ./src/8-add-sound.asm
