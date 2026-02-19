@@ -19,14 +19,17 @@ TODO
 
 # Technical write-up
 - [Tools](#tools)
-- [Hello world](#hello-world)
-- [Creating a synchronised game loop](#creating-a-synchronised-game-loop)
-- [Reading keyboard input](#reading-keyboard-input)
-- [Adding game boundaries](#adding-game-boundaries)
-- [Adding randomly placed power-ups](#adding-randomly-placed-power-ups)
-- [Making the snake grow](#making-the-snake-grow)
-- [Alpha build complete!](#alpha-build-complete)
-- [Enhancements](#enhancements)
+- [Hello world - Creating a bootable program](#hello-world)
+- [Creating a synchronised game loop - BIOS services and the
+  PIT](#creating-a-synchronised-game-loop)
+- [Reading keyboard input - A deep dive into the 5150
+  hardware](#reading-keyboard-input)
+- [Adding game boundaries - Collision detection](#adding-game-boundaries)
+- [Adding randomly placed power-ups - Hacking the
+  PIT](#adding-randomly-placed-power-ups)
+- [Making the snake grow - Hiding data in the VRAM](#making-the-snake-grow)
+- [Alpha build complete! - 370/512 bytes, room to spare](#alpha-build-complete)
+- [Enhancements - Bit banging to create sound](#enhancements)
 - [Surprises](#surprises)
 - [Follow-up ideas](#follow-up-ideas)
 - [Wrapping up](#wrapping-up)
