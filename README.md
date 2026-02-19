@@ -971,16 +971,19 @@ It doesn't add much code either and only adds 25 bytes to the binary.
   efficient.
 
 ## Wrapping up
-Here's the [final program][final-program]. It's not perfect, but we covered a
-lot of ground:
+
+<img src="./misc/assets/snake-v1-with-score.gif" alt="final game" width="500"/>
+
+Here's the [final program][final-program] (notice the score in the top right
+corner). It's not perfect, but we covered a lot of ground:
 
 - TODO
 - TODO
 
-A bootable 160K floppy image is in the repo [here][bootable-disk], which can be
-loaded into an accurately emulated 5150 with MDA display such as 86Box. Put it
-in drive `A:` and boot the machine. Doesn't currently work correctly with
-pcjs.org.
+A bootable 160K floppy image is included in the repo [here][bootable-disk],
+which can be loaded into an accurately emulated 5150 with MDA display such as
+86Box. Put it in drive `A:` and boot the machine. Doesn't currently work
+correctly with pcjs.org.
 
 ## Follow-up ideas
 - Experiment with disabling servicing of IRQ1 in the PIC and handle keyboard
