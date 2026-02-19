@@ -914,8 +914,39 @@ We've only used 370 of the 512 bytes available in the boot sector, leaving us
 with a whopping 142 bytes to add some enhancements! Here's the cumulative cost
 of adding some additional features:
 - Adding a score: 416/512 bytes
-- Adding sound: TODO
+- Adding sound: 441/512
 - Adusting the speed: TODO
+
+### Adding a score
+Adding a score was straightforward. Nothing interesting to mention.
+
+### Adding sound
+Generating sound was interesting because it's usually done using some special
+functionality of TIMER 2, which we are already using to generate random
+numbers. I could have used TIMER 0 to get random numbers instead to free up
+TIMER 2, but decided to have some fun with a bit bashing approach instead. This
+is achieved by pulsing the speaker cone in and out manually using the CPU like
+this:
+
+```
+;
+; bit_bang_sound: oscillate the PC speaker manually
+;                 (TIMER 2 is not available)
+; BX: freq control (num cpu cycles between speaker cone in/out)
+; CX: duration (how many oscillations)
+bit_bang_sound:
+    push cx
+    mov cx,bx
+    loop $              ; wait for cycles
+    pop cx
+    in ax,PPI_PORT_B    ; invert speaker cone
+    xor ax,00000011b
+    out PPI_PORT_B,ax
+    loop bit_bang_sound
+    ret
+```
+
+It doesn't add much code either and only adds 25 bytes to the binary.
 
 ## Surprises
 - `shr bx,8` is undefined behaviour and made `mov word [0],'X'+7*256` not work!
