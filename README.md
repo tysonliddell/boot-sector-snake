@@ -2,7 +2,7 @@
 This project is a bare-metal implementation of the classic Snake game in x86
 assembly (real mode) contained entirely in the 512 byte boot sector. The
 target architecture is the 16-bit 8086/8088 processor found on the original IBM
-PCs.
+PC.
 
 ## What makes this challenging
 - Limited to a 512 byte binary.
@@ -977,6 +977,11 @@ lot of ground:
 - TODO
 - TODO
 
+A bootable 160K floppy image is in the repo [here][bootable-disk], which can be
+loaded into an accurately emulated 5150 with MDA display such as 86Box. Put it
+in drive `A:` and boot the machine. Doesn't currently work correctly with
+pcjs.org.
+
 ## Follow-up ideas
 - Experiment with disabling servicing of IRQ1 in the PIC and handle keyboard
   events by polling.
@@ -1007,3 +1012,4 @@ lot of ground:
 [keyboard-code]: ./src/3-keyboard.asm
 [pit-datasheet]: https://cpcwiki.eu/imgs/e/e3/8253.pdf
 [final-program]: ./src/8-add-sound.asm
+[bootable-disk]: ./snake-boot.img
