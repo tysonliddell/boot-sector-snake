@@ -14,7 +14,7 @@ PCs.
 - No heap or dynamic memory allocation.
 - Potential undefined hardware states on boot (depending on the BIOS).
 
-## Running/debugging the code
+## Running the game
 TODO
 
 # Technical write-up
@@ -22,6 +22,14 @@ TODO
 - [Hello world](#hello-world)
 - [Creating a synchronised game loop](#creating-a-synchronised-game-loop)
 - [Reading keyboard input](#reading-keyboard-input)
+- [Adding game boundaries](#adding-game-boundaries)
+- [Adding randomly placed power-ups](#adding-randomly-placed-power-ups)
+- [Making the snake grow](#making-the-snake-grow)
+- [Alpha build complete!](#alpha-build-complete)
+- [Enhancements](#enhancements)
+- [Surprises](#surprises)
+- [Follow-up ideas](#follow-up-ideas)
+- [Wrapping up](#wrapping-up)
 
 ## Tools
 - 86Box can be used for cycle-accurate emulation of the 8086. Since the game
@@ -524,7 +532,7 @@ following result (source code [here][keyboard-code]):
 
 *Cumulative byte count: 135/512*
 
-## Adding boundaries
+## Adding game boundaries
 ### Drawing a border
 Next some boundaries are added to the game. Hitting one should result in a
 game-over message. First a boundary is drawn around the screen, which is
@@ -915,7 +923,8 @@ with a whopping 142 bytes to add some enhancements! Here's the cumulative cost
 of adding some additional features:
 - Adding a score: 416/512 bytes
 - Adding sound: 441/512
-- Adusting the speed: TODO
+- Adjusting the speed: ~TODO~ Calling it here for now. Other projects to work
+  on.
 
 ### Adding a score
 Adding a score was straightforward. Nothing interesting to mention.
@@ -956,10 +965,14 @@ It doesn't add much code either and only adds 25 bytes to the binary.
   uses less much less space then `add ax,2`. The trade-off is it's less
   efficient.
 
-
-## Follow-up
+## Follow-up ideas
 - Experiment with disabling servicing of IRQ1 in the PIC and handle keyboard
   events by polling.
+- Add a mechanism to increase the speed as the game progresses.
+- Add random obstacles to make the game more challenging.
+
+## Wrapping up
+TODO
 
 ## Useful links:
 - https://www.ctyme.com/intr/int.htm
