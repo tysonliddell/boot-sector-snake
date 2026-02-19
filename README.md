@@ -41,6 +41,8 @@ TODO
 - Bootloader assembled with `nasm -f bin <source>.asm -o <OUTNAME>.img`.
 - Bootloader is turned into a bootable 160K disk image with
   `truncate -s 160K <file>`.
+- Reference manuals, datasheets and authoritative sources only. No LLMs/coding
+  assistance.
 
 ## Hello world
 First things first. Let's start with a Hello World bootloader.
