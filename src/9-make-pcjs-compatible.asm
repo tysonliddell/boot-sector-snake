@@ -1,5 +1,6 @@
-PIT_COMMAND             equ 0x43
+PIT_CHAN_0              equ 0x40
 PIT_CHAN_2              equ 0x42
+PIT_COMMAND             equ 0x43
 PPI_PORT_B              equ 0x61
 
 VID_BUF_SEG:            equ 0xb000
@@ -19,23 +20,19 @@ DOWN_DIR:               equ 0x05
 WHTFG_BLKBG:            equ 0x07    ; white fg with black bg char attribute
 BLKFG_WHTBG:            equ 0x70
 
+PRNG_P                  equ 1999    ; choose prime p s.t. p < 80*25
+PRNG_M                  equ 20
+
 ; use the 96 bytes of "off-screen" video memory for general storage
 ; this simplifies working with segmented memory
 SNAKE_HEAD_POS:         equ 25*80*2
 SNAKE_TAIL_POS:         equ SNAKE_HEAD_POS+2
 SNAKE_LENGTH:           equ SNAKE_HEAD_POS+4
+PRNG_SEQ:               equ SNAKE_HEAD_POS+6
+
 
     org 0x7c00
 start:
-    ; set up TIMER 2 for a counter rollover of 25*80 so that we can use it
-    ; to "randomly" generate screen positions.
-    mov al,10111100b    ; TIMER 2, rate generator
-    out PIT_COMMAND,al
-    mov ax,25*80-1      ; counter value can include its upper bound
-    out PIT_CHAN_2,al
-    mov al,ah
-    out PIT_CHAN_2,al
-
     mov ax,0x0002   ; text mode
     int 0x10
 
@@ -66,6 +63,8 @@ start:
     mov word [SNAKE_TAIL_POS],SNAKE_START_POS-4
     mov word [SNAKE_LENGTH],3
 
+    call seed_prng
+
     call draw_border
     call place_powerup
 
@@ -89,14 +88,19 @@ inc_score:
 ; BX: freq control (num cpu cycles between speaker cone in/out)
 ; CX: duration (how many oscillations)
 bit_bang_sound:
+    in ax,PPI_PORT_B
+    mov dx,ax           ; save current port state in DX
+flip_cone:
     push cx
     mov cx,bx
     loop $              ; wait for cycles
     pop cx
-    in ax,PPI_PORT_B    ; invert speaker cone
-    xor ax,00000011b
+    xor ax,00000011b    ; invert speaker cone
     out PPI_PORT_B,ax
-    loop bit_bang_sound
+    loop flip_cone
+
+    mov ax,dx           ; restore port
+    out PPI_PORT_B,ax
     ret
 
 print_score:
@@ -261,27 +265,15 @@ game_over_msg:  db "GAME OVER!",0
 place_powerup:
     push bx
 pp_loop:
-    call random_pos
+    call prng_next  ; result in DX (value in range 0-2000)
+    mov ax,dx
+    shl ax,1        ; chars on screen are 16-bit
     mov bx,ax
     cmp word [bx],BIOS_BLANK_FILL_CHAR
     jnz pp_loop                         ; find another location
 
     mov word [bx], POWERUP_CHAR
     pop bx
-    ret
-
-;
-; random_pos: returns a random screen position in AX
-;
-random_pos:
-    mov ax,10000000b    ; read TIMER 2 counter value from PIT in latched mode
-    out PIT_COMMAND,ax
-    in al,PIT_CHAN_2
-    mov ah,al
-    in al,PIT_CHAN_2
-    xchg al,ah
-
-    shl ax,1        ; video locations are 16 bits wide
     ret
 
 ;
@@ -299,8 +291,35 @@ next_position:
     add bx,ax               ; move BX to new position
     ret
 
+seed_prng:
+    mov ax,00000000b    ; read TIMER 0 counter value from PIT in latched mode
+    out PIT_COMMAND,ax
+    in al,PIT_CHAN_0
+    mov ah,al
+    in al,PIT_CHAN_0
+    xchg al,ah
+    xor ah,ah       ; make seed < 256 < PRNG_P
+    mov [PRNG_SEQ],ax
+    ret
+
+; compute m*x mod p
+; sets DX to next number in sequence
+prng_next:
+    push ax
+    push cx
+    mov ax,[PRNG_SEQ]
+    mov dx,PRNG_M
+    mul dx          ; mx
+    mov dx,0
+    mov cx,PRNG_P   ; mod p
+    div cx
+    mov [PRNG_SEQ],dx
+    pop cx
+    pop ax
+    ret
+
 DIR_TABLE:
     db 0,0,-80,-1,1,80  ; NA, NA, up, left, right, down
 
-    times 510-($-$$) db 0   ; pad rest of first sector with zeros
-    dw 0xaa55               ; boot signature (little-endian)
+    ;times 510-($-$$) db 0   ; pad rest of first sector with zeros
+    ;dw 0xaa55               ; boot signature (little-endian)

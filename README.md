@@ -15,7 +15,10 @@ PC.
 - Potential undefined hardware states on boot (depending on the BIOS).
 
 ## Running the game
-TODO
+Grab the [160K floppy boot image][bootable-disk] and use it as the boot disk
+for an IBM 5150 (MDA display needed). If you don't own one of these pieces of
+computing history, your can run it online with the [corresponding
+emulator][pcjs-5150-emu] at PCjs.org, or locally with something like 86Box.
 
 # Technical write-up
 - [Tools](#tools)
@@ -30,6 +33,8 @@ TODO
 - [Making the snake grow - Hiding data in the VRAM](#making-the-snake-grow)
 - [Alpha build complete! - 370/512 bytes, room to spare](#alpha-build-complete)
 - [Enhancements - Bit banging to create sound](#enhancements)
+- [One last bug](#one-last-bug)
+- [Adding PCjs compatibility](#adding-pcjs-compatibility)
 - [Surprises](#surprises)
 - [Wrapping up](#wrapping-up)
 - [Follow-up ideas](#follow-up-ideas)
@@ -962,6 +967,90 @@ bit_bang_sound:
 
 It doesn't add much code either and only adds 25 bytes to the binary.
 
+## One last bug
+Further testing revealed that the last change added a pretty serious bug. The
+game would freeze at random times when collecting a power-up. See the
+reproduction case below:
+
+<img src="./misc/assets/debug-hang-sound-on-no-dots.gif" alt="the game hangs" width="500"/>
+
+The diagnostic `0x0244` number in the bottom-left corner of the screen
+indicates that the program is continuously generating the same random number
+that collides with an already occupied screen position, resulting in an
+infinite loop. This means that the counter value being reported by TIMER 2 that
+we are using to generate "random numbers" was stuck. This was very strange
+behaviour. Further experimentation revealed that the code to drive the speaker
+(via bit banging) was the culprit. Turning the sound off made things run
+smoothly again:
+
+<img src="./misc/assets/debug-hang-sound-off.gif" alt="the game unhangs" width="500"/>
+
+I found that saving/restoring the state of PPI PORT B (which interacts with
+TIMER 2 and the speaker) and the start/end of the sound routine fixed the issue
+and allowed us to have sound again without the intermittent hanging behaviour.
+
+Side note: I ended up rewriting the random number generation logic, as
+described in the next section, helping avoid weird IO contention between the
+hardware like that described above.
+
+## Adding PCjs compatibility
+At this point, the game now runs great (maybe even bug-free) on 86Box.
+Unfortunately, the program doesn't work properly on the [IBM 5150
+emulator][pcjs-5150-emu] at https://PCjs.org. In particular, power-ups were
+rarely ever visible on the screen. It turned out that even though TIMER 2 was
+configured to rollover at 2000, the PCjs emulator was apparently producing
+values in the range 0 - 0xFFFF.
+
+<img src="./misc/assets/debug-pcjs-no-powerups.png" alt="pcjs powerups no really random" width="500"/>
+
+Note that diagnostic value of `7>>:` above which represents `0x7EEA`, a value
+much greater than the configured 2000 rollover value. I suspect this is a
+result of PCjs emulation inaccuracies. Additionally, even when masking the
+generated numbers in the code to force them to lie in the the correct range
+they tended to cluster and not distribute randomly at all on PCjs.
+
+Given the above I decided to roll my own pseudorandom number generator. Since
+it doesn't need to be high-quality or cryptographically secure, it's
+straightforward to implement one. To generate a sequence of pseudorandom
+numbers in the range of the 25 x 80 = 2000 screen positions we choose a prime
+`p < 2000` (1999 is the obvious choice) and, for some choice of `m`, set:
+
+```
+x_(n+1) := m*x_1 mod p
+```
+
+I found that someone has [experimented with this previously][random-numbers]
+and choosing `m = 20` seems to be a good enough choice. Checking a few 200-long
+sequences with different seeds confirms this. Here's the 16-bit x86 assembly:
+
+```
+; compute m*x mod p
+; sets DX to next number in sequence
+prng_next:
+    push ax
+    push cx
+    mov ax,[PRNG_SEQ]
+    mov dx,PRNG_M
+    mul dx          ; mx
+    mov dx,0
+    mov cx,PRNG_P   ; mod p
+    div cx
+    mov [PRNG_SEQ],dx
+    pop cx
+    pop ax
+    ret
+```
+
+With this change in place the code can now be made fully deterministic for
+testing by hardcoding the seed. This turned out to be handy when testing across
+different emulators. The final version uses the PIT to generate a "random" seed
+and it now runs great on both 86Box and PCjs. As an added benefit, the code is
+a little more robust since it relies less on specific hardware and is less
+hacky.
+
+*Cumulative byte count: 469/512*
+
+
 ## Surprises
 - `shr bx,8` is undefined behaviour and made `mov word [0],'X'+7*256` not work!
   Looks like it corrupted the DS register. Possibly an 86Box issue.
@@ -982,8 +1071,8 @@ corner). It's not perfect, but we covered a lot of ground:
 
 A bootable 160K floppy image is included in the repo [here][bootable-disk],
 which can be loaded into an accurately emulated 5150 with MDA display such as
-86Box. Put it in drive `A:` and boot the machine. Doesn't currently work
-correctly with pcjs.org.
+86Box or online using the [5150 MDA emulator][psjs-5150-emu] at PCjs.org. Put
+it in drive `A:` and boot the machine.
 
 ## Follow-up ideas
 - Experiment with disabling servicing of IRQ1 in the PIC and handle keyboard
@@ -1001,6 +1090,8 @@ correctly with pcjs.org.
 - https://pdos.csail.mit.edu/6.828/2017/readings/hardware/8259A.pdf
 - http://aturing.umcs.maine.edu/~meadow/courses/cos335/Intel8255A.pdf
 - http://lh.ece.dal.ca/csteaching/pcdev.html
+- https://www.pcjs.org/
+- https://blog.yunwilliamyu.net/2011/08/14/mindhack-mental-math-pseudo-random-number-generators/
 
 [weird-strobing]: ./misc/assets/video-mode-mystery1.gif
 [weird-strobing-2]: ./misc/assets/video-mode-mystery2.gif
@@ -1016,3 +1107,5 @@ correctly with pcjs.org.
 [pit-datasheet]: https://cpcwiki.eu/imgs/e/e3/8253.pdf
 [final-program]: ./src/8-add-sound.asm
 [bootable-disk]: ./snake-boot.img
+[pcjs-5150-emu]: https://www.pcjs.org/machines/pcx86/ibm/5150/mda/
+[random-numbers]: https://blog.yunwilliamyu.net/2011/08/14/mindhack-mental-math-pseudo-random-number-generators/
