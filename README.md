@@ -18,6 +18,8 @@ computing history you can run it online with the [corresponding
 emulator][pcjs-5150-emu] at PCjs.org or locally with something like 86Box.
 Insert the image into the `A:` drive and boot the machine.
 
+<img src="./misc/assets/game-screenshot.png" alt="game screenshot" width="500"/>
+
 # Technical write-up
 - [Tools](#tools)
 - [Hello world - Creating a bootable program](#hello-world)
