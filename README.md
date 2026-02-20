@@ -1065,12 +1065,12 @@ corner). It's not perfect, but we covered a lot of ground:
   tiny memory footprint. This game can run on the most memory constrained
   systems.
 - Iterfaced directly (without using the BIOS) with several hardware systems
-  including the PIT, PIP and PC speaker. Used bit banging to drive the speaker
+  including the PIT, PPI and PC speaker. Used bit banging to drive the speaker
   with the CPU (because why not?).
 - Navigated BIOS source code to determine further details about the power-on
   state of the system and hardware.
 - Diagnosed and fixed tricky, non-deterministic hardware faults including PC
-  speaker and PIT contention on the PIP, all without access to debugging tools.
+  speaker and PIT contention on the PPI, all without access to debugging tools.
 - Improved the pseudorandom number generation algorithm to work around
   innaccurate emulation/hardware, improving the code and portability in the
   process.
