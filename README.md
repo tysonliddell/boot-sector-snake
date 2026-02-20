@@ -1,24 +1,22 @@
 # boot-sector-snake
 This project is a bare-metal implementation of the classic Snake game in x86
-assembly (real mode) contained entirely in the 512 byte boot sector. The
-target architecture is the 16-bit 8086/8088 processor found on the original IBM
-PC.
+assembly contained in the 512 byte boot sector (16-bit real mode). The target
+architecture/platform is the 16-bit 8086/8088 processor running on the original
+IBM PC (5150) with a monochrome display adaptor (MDA).
 
 ## What makes this challenging
 - Limited to a 512 byte binary.
-- No access to OS services or libraries. Only minimal BIOS interrups are
-  available.
-- No device drivers. Every feature (graphics, timing, input, game logic) must
-  be build directly on top of hardware.
-- The stack needs to be managed manually.
-- No heap or dynamic memory allocation.
-- Potential undefined hardware states on boot (depending on the BIOS).
+- No access to OS services or libraries. Only BIOS interrupts and hardware ports.
+- No dynamic memory allocation (heap) and the stack needs to be managed manually.
+- Hardware idiosyncrasies.
+- Inconsistencies between emulators and real hardware.
 
 ## Running the game
 Grab the [160K floppy boot image][bootable-disk] and use it as the boot disk
 for an IBM 5150 (MDA display needed). If you don't own one of these pieces of
-computing history, your can run it online with the [corresponding
-emulator][pcjs-5150-emu] at PCjs.org, or locally with something like 86Box.
+computing history you can run it online with the [corresponding
+emulator][pcjs-5150-emu] at PCjs.org or locally with something like 86Box.
+Insert the image into the `A:` drive and boot the machine.
 
 # Technical write-up
 - [Tools](#tools)
@@ -986,7 +984,7 @@ smoothly again:
 <img src="./misc/assets/debug-hang-sound-off.gif" alt="the game unhangs" width="500"/>
 
 I found that saving/restoring the state of PPI PORT B (which interacts with
-TIMER 2 and the speaker) and the start/end of the sound routine fixed the issue
+TIMER 2 and the speaker) at the start/end of the sound routine fixed the issue
 and allowed us to have sound again without the intermittent hanging behaviour.
 
 Side note: I ended up rewriting the random number generation logic, as
