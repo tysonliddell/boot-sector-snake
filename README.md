@@ -31,8 +31,8 @@ Insert the image into the `A:` drive and boot the machine.
 - [Making the snake grow - Hiding data in the VRAM](#making-the-snake-grow)
 - [Alpha build complete! - 370/512 bytes, room to spare](#alpha-build-complete)
 - [Enhancements - Bit banging to create sound](#enhancements)
-- [One last bug](#one-last-bug)
-- [Adding PCjs compatibility](#adding-pcjs-compatibility)
+- [One last bug - Temperamental hardware](#one-last-bug)
+- [Adding PCjs compatibility - From hardware to a PRNG](#adding-pcjs-compatibility)
 - [Surprises](#surprises)
 - [Wrapping up](#wrapping-up)
 - [Follow-up ideas](#follow-up-ideas)
@@ -282,12 +282,6 @@ and padding the rest of the file up to 160K:
 ```
 truncate -s 160K hello-boot.img
 ```
-
-### What we have achieved
-This results in the hello world program running successfully on boot. The code
-runs without the support of a runtime, libraries or kernel. We satisfied the
-BIOS boot protocol, interfaced directly with the hardware through memory mapped
-video (no device driver), and worked with real mode addressing.
 
 ## Creating a synchronised game loop
 With "Hello, world!" out of the way, work begins on the game. Let's start with
@@ -1040,11 +1034,11 @@ prng_next:
 ```
 
 With this change in place the code can now be made fully deterministic for
-testing by hardcoding the seed. This turned out to be handy when testing across
-different emulators. The final version uses the PIT to generate a "random" seed
-and it now runs great on both 86Box and PCjs. As an added benefit, the code is
-a little more robust since it relies less on specific hardware and is less
-hacky.
+testing by hardcoding the seed, which turned out to be handy when testing
+across different emulators. The final version uses the PIT to generate a
+"random" seed and it now runs great on both 86Box and PCjs. As an added
+benefit, the code is a little more robust since it relies less on specific
+hardware and is less hacky.
 
 *Cumulative byte count: 469/512*
 
@@ -1064,12 +1058,28 @@ hacky.
 Here's the [final program][final-program] (notice the score in the top right
 corner). It's not perfect, but we covered a lot of ground:
 
-- TODO
-- TODO
+- Made use of low-level BIOS services: keyboard, system-timer and video
+  initialisation.
+- Worked with memory-mapped IO to drive the display.
+- Used VRAM as a storage area by hiding data in character attributes, leaving a
+  tiny memory footprint. This game can run on the most memory constrained
+  systems.
+- Iterfaced directly (without using the BIOS) with several hardware systems
+  including the PIT, PIP and PC speaker. Used bit banging to drive the speaker
+  with the CPU (because why not?).
+- Navigated BIOS source code to determine further details about the power-on
+  state of the system and hardware.
+- Diagnosed and fixed tricky, non-deterministic hardware faults including PC
+  speaker and PIT contention on the PIP, all without access to debugging tools.
+- Improved the pseudorandom number generation algorithm to work around
+  innaccurate emulation/hardware, improving the code and portability in the
+  process.
+- Implemented a functional snake game in a 512K boot sector with no operating
+  system or runtime.
 
 A bootable 160K floppy image is included in the repo [here][bootable-disk],
 which can be loaded into an accurately emulated 5150 with MDA display such as
-86Box or online using the [5150 MDA emulator][psjs-5150-emu] at PCjs.org. Put
+86Box or online using the [5150 MDA emulator][pcjs-5150-emu] at PCjs.org. Put
 it in drive `A:` and boot the machine.
 
 ## Follow-up ideas
@@ -1103,7 +1113,7 @@ it in drive `A:` and boot the machine.
 [ps2-keyboard]: https://wiki.osdev.org/I8042_PS/2_Controller
 [keyboard-code]: ./src/3-keyboard.asm
 [pit-datasheet]: https://cpcwiki.eu/imgs/e/e3/8253.pdf
-[final-program]: ./src/8-add-sound.asm
+[final-program]: ./src/9-make-pcjs-compatible.asm
 [bootable-disk]: ./snake-boot.img
 [pcjs-5150-emu]: https://www.pcjs.org/machines/pcx86/ibm/5150/mda/
 [random-numbers]: https://blog.yunwilliamyu.net/2011/08/14/mindhack-mental-math-pseudo-random-number-generators/
